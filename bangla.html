@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BanglaLang — Ubuntu-Style Web Interpreter</title>
+  <!-- Ubuntu fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#1b0f16; --bg-2:#2c001e; --panel:#201621; --panel-2:#281b28;
+      --text:#f6f4f2; --muted:#c9bdc7; --border:#3f2a41;
+      --accent:#e95420; --accent-2:#f99b11; --green:#7ec48f;
+      --round:16px; --shadow-lg:0 20px 50px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.02);
+      --mono:"Ubuntu Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Fira Code", monospace;
+      --sans:Ubuntu, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans", sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font:15px/1.55 var(--sans); color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 20% -10%, rgba(233,84,32,.20), transparent 50%),
+        radial-gradient(1000px 600px at 110% -20%, rgba(119,33,111,.18), transparent 60%),
+        linear-gradient(180deg, var(--bg-2), var(--bg) 60%, #160c13);
+    }
+    header{position:sticky;top:0;z-index:10;backdrop-filter:saturate(120%) blur(6px);
+      background:linear-gradient(180deg, rgba(44,0,30,.85), rgba(27,15,22,.75));
+      border-bottom:1px solid rgba(249,155,17,.2); box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .titlebar{display:flex;align-items:center;gap:12px;padding:14px 18px}
+    .brand-dot{display:flex;gap:6px;margin-right:6px}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .dot.orange{background:var(--accent)} .dot.gold{background:var(--accent-2)} .dot.purple{background:#77216f}
+    .titlebar h1{margin:0;font-size:18px;letter-spacing:.2px;font-weight:700}
+    .badge{margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid rgba(233,84,32,.35);color:var(--muted);font-size:12px}
+    .container{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;padding:18px;min-height:calc(100vh - 62px)}
+    @media (max-width:1024px){.container{grid-template-columns:1fr;min-height:auto}}
+    .card{background:linear-gradient(180deg, var(--panel), var(--panel-2));border:1px solid var(--border);border-radius:var(--round);box-shadow:var(--shadow-lg);overflow:hidden}
+    .toolbar{display:flex;flex-wrap:wrap;gap:10px;padding:12px;border-bottom:1px solid var(--border);background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.06))}
+    .toolbar .spacer{flex:1}
+    button,select{border:1px solid var(--border);background:#241824;color:var(--text);padding:9px 12px;border-radius:14px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+    button:hover{border-color:#533255;transform:translateY(-0.5px)} button:active{transform:translateY(0)}
+    button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    .primary{background:linear-gradient(180deg, var(--accent), #d4491a);border-color:#c0441a;box-shadow:0 6px 18px rgba(233,84,32,.35)}
+    .ghost{background:#221623}
+    .pane{display:flex;flex-direction:column;min-height:320px}
+    textarea{width:100%;height:62vh;min-height:340px;background:linear-gradient(180deg,#1c121f,#1b141e);color:var(--text);border:0;resize:vertical;padding:16px 18px;font-family:var(--mono);font-size:14px;outline:none;border-top:1px solid rgba(255,255,255,.03)}
+    textarea::selection{background:rgba(233,84,32,.28)}
+    .outTabs{display:flex;gap:10px;padding:10px;border-bottom:1px solid var(--border);background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.06))}
+    .tab{padding:6px 10px;border-radius:10px;border:1px solid transparent}
+    .tab:hover{border-color:#4e2f50;background:#251a26}
+    pre{margin:0;padding:16px 18px;font-family:var(--mono);font-size:13px;white-space:pre-wrap;word-break:break-word}
+    pre.code{background:#171019}
+    .tip{border-left:3px solid var(--accent-2);background:linear-gradient(180deg,#1d1422,#1a151e);padding:10px 12px;border-radius:12px;margin:12px 16px;color:#ffe9d1}
+    footer{padding:14px 22px;color:var(--muted);opacity:.9}
+    #status{color:#f0e6ff}
+    .status-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#241824;border:1px solid var(--border);color:var(--muted)}
+    .pulse{width:8px;height:8px;border-radius:999px;background:var(--green);box-shadow:0 0 0 0 rgba(126,196,143,.8);animation:pulse 2s infinite}
+    @keyframes pulse{to{box-shadow:0 0 0 14px rgba(126,196,143,0)}}
+    ::-webkit-scrollbar{width:12px;height:12px}
+    ::-webkit-scrollbar-thumb{background:#3b2740;border:3px solid #1a0f16;border-radius:12px}
+    ::-webkit-scrollbar-thumb:hover{background:#4c3051}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="titlebar">
+      <div class="brand-dot" aria-hidden="true">
+        <span class="dot orange"></span><span class="dot gold"></span><span class="dot purple"></span>
+      </div>
+      <h1>BanglaLang — Web Interpreter <span class="badge">MVP</span></h1>
+      <div class="spacer" style="flex:1"></div>
+      <div class="status-pill"><span class="pulse"></span><span id="status">Ready</span></div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Left: Editor -->
+    <section class="card pane">
+      <div class="toolbar">
+        <button id="runBtn" class="primary" title="Run (Ctrl/⌘+Enter)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 4l12 8-12 8V4z" fill="currentColor"/></svg>
+          Run <span style="opacity:.8">(Ctrl/⌘+Enter)</span>
+        </button>
+        <button id="fmtBtn" class="ghost" title="Beautify">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18M3 12h12M3 18h18" stroke="currentColor" stroke-width="2"/></svg>
+          Beautify
+        </button>
+        <button id="resetBtn" class="ghost" title="Reset examples">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4v6h6" stroke="currentColor" stroke-width="2"/><path d="M20 20v-6h-6" stroke="currentColor" stroke-width="2"/><path d="M20 10a8 8 0 00-14-4" stroke="currentColor" stroke-width="2"/><path d="M4 14a8 8 0 0014 4" stroke="currentColor" stroke-width="2"/></svg>
+          Reset
+        </button>
+        <div class="spacer"></div>
+        <select id="exampleSel" title="Load example">
+          <option value="hello">Example: Hello</option>
+          <option value="ifelse">Example: If/Else</option>
+          <option value="loop">Example: Loop</option>
+          <option value="func">Example: Functions & For</option>
+        </select>
+        <button id="downloadBn" class="ghost" title="Download .bn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12" stroke="currentColor" stroke-width="2"/><path d="M7 11l5 5 5-5" stroke="currentColor" stroke-width="2"/><path d="M4 21h16" stroke="currentColor" stroke-width="2"/></svg>
+          Download .bn
+        </button>
+      </div>
+      <div class="editor"><textarea id="editor" spellcheck="false"></textarea></div>
+      <div class="tip">
+        <strong>Hints:</strong>
+        শর্ত: <code>যদি ...:</code>, <code>নাহলে:</code>, <code>নাহলে যদি ...:</code> (এগুলোও চলে: <code>না হলে/নইলে/অন্যথায়</code>)।
+        লুপ: <code>যতক্ষণ ...:</code>, <code>যতক্ষণ না ...:</code>।
+        For-in: <code>জন্য/প্রতি/প্রতিটি v in|এর মধ্যে|মধ্যে|ভিতরে X:</code>।
+        ফাংশন: <code>ফাংশন নাম(...):</code> বা <code>ফাংশন নাম a, b:</code>, রিটার্ন: <code>ফেরত/রিটার্ন</code>।
+        প্রিন্ট: <code>দেখাও/লিখ/প্রিন্ট/বল/বলো/ছাপাও expr</code>।
+        ব্রেক/কন্টিনিউ: <code>থেমে_যাও/থামো/বের_হও</code>, <code>চালিয়ে_যাও/চালাও</code>।
+        হেল্পার: <code>পরিসর/রেঞ্জ</code>, <code>ইনপুট/নাও</code>, <code>পূর্ণসংখ্যা/ইন্ট</code>, <code>দশমিক/ফ্লোট</code>, <code>লম্বা/দৈর্ঘ্য/সাইজ/আকার</code>।
+        তুলনা: <code>বেশি/কম/সমান/সমান নয়/বেশি বা সমান/কম বা সমান</code>। অ্যাসাইন: <code>x হোক ৫</code>।
+        ব্লক শেষ: <code>শেষ/সমাপ্ত/এন্ড/end</code>।
+      </div>
+    </section>
+
+    <!-- Right: Output / JS -->
+    <section class="card pane">
+      <div class="toolbar">
+        <button id="toggleJS" class="ghost" title="Toggle JS view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5l7 7-7 7" stroke="currentColor" stroke-width="2"/></svg>
+          Show JS
+        </button>
+        <button id="copyJS" class="ghost" title="Copy JS to clipboard">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 9h9v12H9z" stroke="currentColor" stroke-width="2"/><path d="M6 3h9v6" stroke="currentColor" stroke-width="2"/></svg>
+          Copy JS
+        </button>
+        <div class="spacer"></div>
+      </div>
+      <div class="outTabs">
+        <button id="tabOut" class="tab ghost">Output</button>
+        <button id="tabJS" class="tab ghost">JS</button>
+      </div>
+      <pre id="output" class="code" aria-live="polite"></pre>
+      <pre id="jsOut" class="code" style="display:none"></pre>
+    </section>
+  </div>
+
+  <footer><div class="row">⚠️ এটি শিক্ষণ-উদ্দেশ্য MVP (sandbox নয়)। অবিশ্বস্ত কোড চালিও না।</div></footer>
+
+  <script>
+  // ======= Runtime utilities ======= show korbe 
+  const $ = sel => document.querySelector(sel);
+  const editor = $('#editor');
+  const outEl = $('#output');
+  const jsEl = $('#jsOut');
+  const statusEl = document.getElementById('status');
+
+  // Examples...example show korbe
+  const EXAMPLES = {
+    hello: `দেখাও "হ্যালো, বাংলা!"
+x = ৫
+y = ৩
+দেখাও x + y`,
+
+    ifelse: `x হোক ১০
+যদি x বেশি বা সমান ৫:
+    লিখ "x পাঁচের সমান বা বড়"
+নাহলে:
+    বল "x ছোট"
+শেষ`,
+
+    loop: `i = ১
+যতক্ষণ না i সমান ৬:
+    প্রিন্ট i
+    i = i + ১
+শেষ`,
+
+    func: `ফাংশন যোগ x, y:
+    রিটার্ন x + y
+সমাপ্ত
+
+দেখাও যোগ(৫, ৭)
+
+প্রতি i এর মধ্যে রেঞ্জ(১, ৬):
+    ছাপাও i
+শেষ
+
+তালিকা = [১, ২, ৩]
+দেখাও "লম্বা:", লম্বা(তালিকা)
+প্রতিটি v মধ্যে তালিকা:
+    লিখ v
+শেষ`
+  };
+
+  // Load/save hobe
+  const STORAGE_KEY = 'banglalang.code';
+  function loadFromStorage(){
+    const s = localStorage.getItem(STORAGE_KEY);
+    editor.value = s || EXAMPLES.hello;
+  }
+  function saveToStorage(){ localStorage.setItem(STORAGE_KEY, editor.value); }
+
+  // ======= Language helpers (friendlier Bangla) =======
+  const DIGIT_MAP = new Map(Object.entries({
+    '০':'0','১':'1','২':'2','৩':'3','৪':'4','৫':'5','৬':'6','৭':'7','৮':'8','৯':'9'
+  }));
+  function normalizeDigits(s){ return s.replace(/[০১২৩৪৫৬৭৮৯]/g, d => DIGIT_MAP.get(d) ); }
+
+  // '#' বা '//' — স্ট্রিংয়ের বাইরে পেলেই কমেন্ট
+  function stripCommentsOutsideStrings(s){
+    let out = '', inStr = false, q = '';
+    for (let i=0;i<s.length;i++){
+      const ch = s[i], nxt = s[i+1];
+      if (!inStr && (ch==='"' || ch==='\'')) { inStr=true; q=ch; out+=ch; continue; }
+      if (inStr){ out+=ch; if (ch===q) { inStr=false; q=''; } continue; }
+      if (ch === '#' || (ch==='/' && nxt === '/')) break;
+      out += ch;
+    }
+    return out.trimEnd();
+  }
+
+  // Outside-string replacements: operators, helpers, assignment, logical
+  const REPLACEMENTS = new Map(Object.entries({
+    // long phrases first
+    'সমান নয়':'!=', 'সমান না':'!=', 'অসমান':'!=', 'সমাননয়':'!=',
+    'বেশি বা সমান':'>=', 'কম বা সমান':'<=', 'বড়সমান':'>=', 'ছোটসমান':'<=',
+    // singles
+    'সমান':'==', 'বেশি':'>', 'বড়':'>', 'কম':'<', 'ছোট':'<',
+    'এবং':'&&', 'অথবা':'||', 'বা':'||', 'না':'!', // logical NOT
+    // booleans/null
+    'সত্য':'true', 'মিথ্যা':'false', 'শূন্য':'null',
+    // helpers
+    'পরিসর':'__range', 'রেঞ্জ':'__range',
+    'ইনপুট':'__input', 'নাও':'__input',
+    'পূর্ণসংখ্যা':'__int', 'ইন্ট':'__int',
+    'দশমিক':'__float', 'ফ্লোট':'__float',
+    'লম্বা':'__len', 'দৈর্ঘ্য':'__len', 'সাইজ':'__len', 'আকার':'__len',
+    // assignment
+    '=':'='
+  }));
+  const replacementKeys = Array.from(REPLACEMENTS.keys())
+    .sort((a,b)=>b.length-a.length)
+    .map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  const REPL_RE = new RegExp(`(?<![\\p{L}\\p{N}_])(${replacementKeys.join('|')})(?![\\p{L}\\p{N}_])`, 'gu');
+
+  function replaceOutsideStrings(s){
+    let out = '', i = 0;
+    while (i < s.length){
+      const ch = s[i];
+      if (ch==='"' || ch==='\''){
+        const q=ch; out+=ch; i++;
+        while(i<s.length){ const c=s[i]; out+=c; i++; if(c===q) break; }
+        continue;
+      }
+      let j = i; while (j<s.length && s[j]!=="\"" && s[j]!=='\'') j++;
+      let seg = s.slice(i,j);
+      seg = seg.replace(REPL_RE, (m,k)=> REPLACEMENTS.get(k) ?? k);
+      out += seg; i = j;
+    }
+    return out;
+  }
+
+  function preprocessLine(raw){
+    let line = normalizeDigits(raw.replace(/\r?\n$/, ''));
+    line = stripCommentsOutsideStrings(line);
+    if (!line.trim()) return '';
+
+    // Else-only line synonyms
+    if (/^\s*(নাহলে|না হলে|নইলে|অন্যথায়|else)\s*:\s*$/i.test(line)){
+      return '__ELSE__';
+    }
+    // Block end synonyms: শেষ/সমাপ্ত/এন্ড/end
+    if (/^\s*(শেষ|সমাপ্ত|এন্ড|end)\s*[:।.]?\s*$/i.test(line)){
+      return '__BLOCK_END__';
+    }
+    return line;
+  }
+
+  function toParen(expr){
+    const t = expr.trim();
+    if (!t) return '(true)';
+    if (t.startsWith('(') && t.endsWith(')')) return t;
+    return '('+t+')';
+  }
+
+  function normalizeFuncSig(sigRaw){
+    // Accept: "name(args)" OR "name a, b" OR "name"
+    let s = sigRaw.trim();
+    if (/\(.*\)/.test(s)){
+      // tidy whitespace around parens/commas
+      return s.replace(/\s*\(\s*/,'(')
+              .replace(/\s*\)\s*$/,')')
+              .replace(/\s*,\s*/g,', ');
+    }
+    // no parentheses: split name and params
+    const parts = s.split(/\s+/);
+    const name = (parts.shift() || 'fn').trim();
+    const paramsRaw = parts.join(' ').trim();
+    if (!paramsRaw) return `${name}()`;
+    const params = paramsRaw.split(/\s*,\s*|\s+/).filter(Boolean).join(', ');
+    return `${name}(${params})`;
+  }
+
+  function translateToJS(src){
+    const lines = src.split(/\r?\n/);
+    let indent = 0; const js = [];
+    const I = n => '  '.repeat(n);
+
+    for (const raw of lines){
+      const pl = preprocessLine(raw);
+      if (pl === '') continue;
+
+      if (pl === '__BLOCK_END__'){
+        indent = Math.max(0, indent-1);
+        js.push(I(indent) + '}');
+        continue;
+      }
+
+      if (pl === '__ELSE__'){
+        const level = Math.max(0, indent-1);
+        js.push(I(level) + `} else {`);
+        continue;
+      }
+
+      const trimmed = pl.trim();
+
+      // ----- Structural forms -----
+
+      // ELSE IF
+      let m = trimmed.match(/^(নাহলে যদি|না হলে যদি|নইলে যদি|অন্যথায় যদি|else if)\s+(.+):\s*$/i);
+      if (m){
+        const cond = replaceOutsideStrings(m[2]);
+        const level = Math.max(0, indent-1);
+        js.push(I(level) + `} else if ${toParen(cond)} {`);
+        continue;
+      }
+
+      // IF
+      m = trimmed.match(/^যদি\s+(.+):\s*$/);
+      if (m){
+        const cond = replaceOutsideStrings(m[1]);
+        js.push(I(indent) + `if ${toParen(cond)} {`);
+        indent++;
+        continue;
+      }
+
+      // WHILE NOT
+      m = trimmed.match(/^যতক্ষণ\s+না\s+(.+):\s*$/);
+      if (m){
+        const cond = replaceOutsideStrings(m[1]);
+        js.push(I(indent) + `while (!${toParen(cond)}) {`);
+        indent++;
+        continue;
+      }
+
+      // WHILE
+      m = trimmed.match(/^যতক্ষণ\s+(.+):\s*$/);
+      if (m){
+        const cond = replaceOutsideStrings(m[1]);
+        js.push(I(indent) + `while ${toParen(cond)} {`);
+        indent++;
+        continue;
+      }
+
+      // FUNCTION (parens optional)
+      m = trimmed.match(/^ফাংশন\s+(.+):\s*$/);
+      if (m){
+        const sig = normalizeFuncSig(m[1]);
+        js.push(I(indent) + `function ${sig} {`);
+        indent++;
+        continue;
+      }
+
+      // FOR-IN: জন্য/প্রতি/প্রতিটি v in|এর মধ্যে|মধ্যে|ভিতরে X:
+      m = trimmed.match(/^(জন্য|প্রতি|প্রতিটি)\s+([^\s]+)\s+(?:in|এর মধ্যে|মধ্যে|ভিতরে)\s+(.+):\s*$/i);
+      if (m){
+        const v = m[2];
+        const expr = replaceOutsideStrings(m[3]);
+        js.push(I(indent) + `for (const ${v} of ${toParen(expr)}) {`);
+        indent++;
+        continue;
+      }
+
+      // RETURN: ফেরত/রিটার্ন
+      m = trimmed.match(/^\s*(ফেরত|রিটার্ন)\b(.*)$/);
+      if (m){
+        const expr = replaceOutsideStrings((m[2]||'').trim());
+        js.push(I(indent) + (expr ? `return ${expr};` : `return;`));
+        continue;
+      }
+
+      // BREAK / CONTINUE variants
+      if (/^\s*(থেমে_যাও|থামো|বের_হও)\s*$/u.test(trimmed)) { js.push(I(indent)+'break;'); continue; }
+      if (/^\s*(চালিয়ে_যাও|চালাও)\s*$/u.test(trimmed)) { js.push(I(indent)+'continue;'); continue; }
+
+      // PRINT variants
+      m = trimmed.match(/^\s*(দেখাও|লিখ|প্রিন্ট|বল|বলো|ছাপাও)\s+(.+)$/);
+      if (m){
+        const expr = replaceOutsideStrings(m[2]);
+        js.push(I(indent) + `__print(${expr});`);
+        continue;
+      }
+
+      // Fallback: normal statement
+      let stmt = replaceOutsideStrings(pl).trimEnd();
+      if (!(/[;{}]\s*$/.test(stmt))) stmt += ';';
+      js.push(I(indent) + stmt);
+    }
+
+    return js.join('\n') + '\n';
+  }
+
+  function run(){
+    const src = editor.value;
+    statusEl.textContent = 'Translating…';
+    const js = translateToJS(src);
+    jsEl.textContent = js;
+
+    try{
+      const logs = [];
+      const __print = (...xs)=>{ logs.push(xs.join(' ')); };
+      const __range = function(...args){
+        let start, stop, step;
+        if (args.length === 1){ start = 0; stop = Number(args[0]); step = 1; }
+        else if (args.length === 2){ start = Number(args[0]); stop = Number(args[1]); step = (start <= stop) ? 1 : -1; }
+        else { start = Number(args[0]); stop = Number(args[1]); step = Number(args[2]||1); }
+        if (!Number.isFinite(start) || !Number.isFinite(stop) || !Number.isFinite(step)) throw new Error('পরিসর/রেঞ্জ: সংখ্যাগত আর্গুমেন্ট দিন');
+        if (step === 0) throw new Error('পরিসর/রেঞ্জ: ধাপ 0 হতে পারে না');
+        const out = [];
+        if (step > 0){ for (let i=start; i<stop; i+=step) out.push(i); }
+        else { for (let i=start; i>stop; i+=step) out.push(i); }
+        return out;
+      };
+      const __len = function(x){
+        if (Array.isArray(x) || typeof x === 'string') return x.length;
+        if (x && typeof x === 'object') return Object.keys(x).length;
+        return 0;
+      };
+      const __input = function(promptText){ return window.prompt(String(promptText ?? '')) ?? ''; };
+      const __int = function(x){ const v = parseInt(x,10); return Number.isNaN(v) ? 0 : v; };
+      const __float = function(x){ const v = parseFloat(x); return Number.isNaN(v) ? 0 : v; };
+
+      const fn = new Function('__print','__range','__len','__input','__int','__float', js);
+      const t0 = performance.now();
+      const result = fn(__print, __range, __len, __input, __int, __float);
+      const t1 = performance.now();
+      outEl.textContent = logs.join('\n');
+      statusEl.textContent = `OK • ${Math.max(0,(t1-t0)).toFixed(2)} ms`;
+      return result;
+    }catch(err){
+      statusEl.textContent = 'Error';
+      outEl.textContent = 'ত্রুটি: ' + err.message;
+    }
+  }
+
+  // ======= UI wiring =======
+  document.getElementById('runBtn').addEventListener('click', run);
+  editor.addEventListener('keydown', (e)=>{
+    if ((e.ctrlKey||e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); }
+  });
+  document.getElementById('fmtBtn').addEventListener('click', ()=>{
+    editor.value = editor.value.split(/\r?\n/).map(s=>s.replace(/\স+$/,'')).join('\n');
+    saveToStorage();
+  });
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    editor.value = EXAMPLES.hello; saveToStorage(); outEl.textContent=''; jsEl.textContent=''; statusEl.textContent='Ready';
+  });
+  document.getElementById('exampleSel').addEventListener('change', (e)=>{
+    const k = e.target.value; editor.value = EXAMPLES[k] || EXAMPLES.hello; saveToStorage();
+  });
+  document.getElementById('toggleJS').addEventListener('click', ()=>{
+    const show = jsEl.style.display === 'none';
+    jsEl.style.display = show ? 'block' : 'none';
+    outEl.style.display = show ? 'none' : 'block';
+  });
+  document.getElementById('tabOut').addEventListener('click', ()=>{ outEl.style.display='block'; jsEl.style.display='none'; });
+  document.getElementById('tabJS').addEventListener('click', ()=>{ outEl.style.display='none'; jsEl.style.display='block'; });
+  document.getElementById('copyJS').addEventListener('click', async ()=>{
+    try { await navigator.clipboard.writeText(jsEl.textContent || translateToJS(editor.value)); statusEl.textContent='Copied JS'; } catch {}
+  });
+  document.getElementById('downloadBn').addEventListener('click', ()=>{
+    const blob = new Blob([editor.value], {type:'text/plain;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'program.bn';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  editor.addEventListener('input', saveToStorage);
+  loadFromStorage();
+  statusEl.textContent = 'Ready';
+  </script>
+</body>
+</html>
